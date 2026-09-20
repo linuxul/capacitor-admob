@@ -1,13 +1,16 @@
+// The names mirror the event enums of the TypeScript API.
+@file:Suppress("ktlint:standard:property-naming")
+
 package com.getcapacitor.community.admob.rewarded
 
 import com.getcapacitor.community.admob.models.LoadPluginEventNames
 
-object RewardAdPluginEvents: LoadPluginEventNames {
-    const val Loaded = "onRewardedVideoAdLoaded"
-    const val FailedToLoad = "onRewardedVideoAdFailedToLoad"
-    const val Rewarded = "onRewardedVideoAdReward"
-    override val Showed = "onRewardedVideoAdShowed"
-    override val FailedToShow = "onRewardedVideoAdFailedToShow"
-    override val Dismissed = "onRewardedVideoAdDismissed"
-    const val AdImpression = "onRewardedVideoAdImpression"
+public object RewardAdPluginEvents : LoadPluginEventNames {
+    public const val Loaded: String = "onRewardedVideoAdLoaded"
+    public const val FailedToLoad: String = "onRewardedVideoAdFailedToLoad"
+    public const val Rewarded: String = "onRewardedVideoAdReward"
+    override val Showed: String = "onRewardedVideoAdShowed"
+    override val FailedToShow: String = "onRewardedVideoAdFailedToShow"
+    override val Dismissed: String = "onRewardedVideoAdDismissed"
+    public const val AdImpression: String = "onRewardedVideoAdImpression"
 }

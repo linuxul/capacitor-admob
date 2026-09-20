@@ -10,7 +10,9 @@ import com.google.android.gms.ads.OnPaidEventListener
 import com.google.android.gms.ads.ResponseInfo
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.common.util.BiConsumer
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.isNull
 import org.mockito.Mock
 import org.mockito.Mockito
 import org.mockito.Mockito.never
@@ -29,16 +32,14 @@ import org.mockito.junit.jupiter.MockitoExtension
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
 internal class InterstitialAdCallbackAndListenersTest {
 
-
-
     @Mock
     lateinit var context: Context
 
     @Mock
-    lateinit var  activity: Activity
+    lateinit var activity: Activity
 
     @Mock
-    lateinit var  notifierMock: BiConsumer<String, JSObject>
+    lateinit var notifierMock: BiConsumer<String, JSObject>
 
     @Mock
     lateinit var pluginCall: PluginCall
@@ -51,7 +52,6 @@ internal class InterstitialAdCallbackAndListenersTest {
 
     @Nested
     inner class InterstitialAdLoadCallback {
-
 
         @Nested
         inner class OnAdFailedToLoad {
@@ -75,7 +75,9 @@ internal class InterstitialAdCallbackAndListenersTest {
                 // ACt
                 listener.onAdFailedToLoad(loadAdErrorMock)
 
-                Mockito.verify(notifierMock).accept(ArgumentMatchers.eq(InterstitialAdPluginPluginEvent.FailedToLoad), argumentCaptor.capture())
+                Mockito.verify(
+                    notifierMock
+                ).accept(ArgumentMatchers.eq(InterstitialAdPluginPluginEvent.FailedToLoad), argumentCaptor.capture())
                 val emittedError = argumentCaptor.value
 
                 assertEquals(wantedErrorCode, emittedError.getInt("code"))
@@ -90,11 +92,10 @@ internal class InterstitialAdCallbackAndListenersTest {
                 // ACt
                 listener.onAdFailedToLoad(loadAdErrorMock)
 
-                Mockito.verify(pluginCall).reject(argumentCaptor.capture())
+                Mockito.verify(pluginCall).reject(argumentCaptor.capture(), isNull(), isNull(), isNull())
                 val resolvedError = argumentCaptor.value
                 assertEquals(wantedMessage, resolvedError)
             }
-
         }
 
         @Nested
@@ -158,9 +159,5 @@ internal class InterstitialAdCallbackAndListenersTest {
                 assertNotNull(interstitialStub.fullScreenContentCallback)
             }
         }
-
-
     }
-
-
 }

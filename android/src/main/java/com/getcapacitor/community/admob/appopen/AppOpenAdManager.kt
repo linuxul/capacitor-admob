@@ -4,21 +4,26 @@ import android.app.Activity
 import android.content.Context
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.AdValue
+import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.appopen.AppOpenAd
 
-class AppOpenAdManager(val adUnitId: String) {
+public class AppOpenAdManager(public val adUnitId: String) {
 
     private var appOpenAd: AppOpenAd? = null
     private var isLoadingAd = false
     private var isShowingAd = false
 
-    val isAdLoaded: Boolean
+    public val isAdLoaded: Boolean
         get() = appOpenAd != null
 
-    fun loadAd(context: Context, onLoaded: () -> Unit, onFailed: (LoadAdError?) -> Unit, onPaidEvent: (AdValue, String, String) -> Unit) {
+    public fun loadAd(
+        context: Context,
+        onLoaded: () -> Unit,
+        onFailed: (LoadAdError?) -> Unit,
+        onPaidEvent: (AdValue, String, String) -> Unit
+    ) {
         if (appOpenAd != null) {
             onLoaded()
             return
@@ -57,12 +62,7 @@ class AppOpenAdManager(val adUnitId: String) {
         )
     }
 
-    fun showAdIfAvailable(
-        activity: Activity,
-        onOpened: () -> Unit,
-        onClosed: () -> Unit,
-        onFailedToShow: (AdError?) -> Unit
-    ) {
+    public fun showAdIfAvailable(activity: Activity, onOpened: () -> Unit, onClosed: () -> Unit, onFailedToShow: (AdError?) -> Unit) {
         if (appOpenAd == null || isShowingAd) {
             onFailedToShow(null)
             return

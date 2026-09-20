@@ -5,7 +5,7 @@ import com.google.android.gms.ads.AdSize
 /**
  * https://developers.google.com/admob/android/banner#banner_sizes
  */
-enum class BannerAdSizeEnum(val size: AdSize) {
+public enum class BannerAdSizeEnum(public val size: AdSize) {
     BANNER(AdSize.BANNER),
     FULL_BANNER(AdSize.FULL_BANNER),
     LARGE_BANNER(AdSize.LARGE_BANNER),
@@ -14,7 +14,5 @@ enum class BannerAdSizeEnum(val size: AdSize) {
     ADAPTIVE_BANNER(AdSize.INVALID), // We should not use the AdSize here but calculate the device size
     SMART_BANNER(AdSize.SMART_BANNER);
 
-    override fun toString(): String {
-        return name
-    }
+    override fun toString(): String = name
 }

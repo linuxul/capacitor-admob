@@ -22,9 +22,13 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.isNull
 import org.mockito.Mock
 import org.mockito.Mockito
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mockConstruction
+import org.mockito.Mockito.never
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
 
 @ExtendWith(MockitoExtension::class)
@@ -51,7 +55,8 @@ internal class RewardedAdCallbackAndListenersTest {
         Mockito.verify(pluginCall, never()).resolve(any()) // Always a clean call
         listener = RewardedAdCallbackAndListeners.getRewardedAdLoadCallback(
             pluginCall,
-            notifierMock, AdOptions.TesterAdOptionsBuilder().build()
+            notifierMock,
+            AdOptions.TesterAdOptionsBuilder().build()
         )
     }
 
@@ -60,13 +65,9 @@ internal class RewardedAdCallbackAndListenersTest {
         private val wantedType = "My Type"
         private val wantedAmount = 69
         private val rewardItem: RewardItem = object : RewardItem {
-            override fun getType(): String {
-                return wantedType
-            }
+            override fun getType(): String = wantedType
 
-            override fun getAmount(): Int {
-                return wantedAmount
-            }
+            override fun getAmount(): Int = wantedAmount
         }
 
         @Test
@@ -118,7 +119,6 @@ internal class RewardedAdCallbackAndListenersTest {
             @Mock
             lateinit var loadAdErrorMock: LoadAdError
 
-
             @BeforeEach
             fun beforeEach() {
                 Mockito.`when`(loadAdErrorMock.code).thenReturn(wantedErrorCode)
@@ -130,7 +130,8 @@ internal class RewardedAdCallbackAndListenersTest {
                 val argumentCaptor = ArgumentCaptor.forClass(JSObject::class.java)
                 val listener = RewardedAdCallbackAndListeners.getRewardedAdLoadCallback(
                     pluginCall,
-                    notifierMock, AdOptions.TesterAdOptionsBuilder().build()
+                    notifierMock,
+                    AdOptions.TesterAdOptionsBuilder().build()
                 )
 
                 // ACt
@@ -153,11 +154,10 @@ internal class RewardedAdCallbackAndListenersTest {
                 // ACt
                 listener.onAdFailedToLoad(loadAdErrorMock)
 
-                Mockito.verify(pluginCall).reject(argumentCaptor.capture())
+                Mockito.verify(pluginCall).reject(argumentCaptor.capture(), isNull(), isNull(), isNull())
                 val resolvedError = argumentCaptor.value
                 assertEquals(wantedReason, resolvedError)
             }
-
         }
 
         @Nested
@@ -190,7 +190,6 @@ internal class RewardedAdCallbackAndListenersTest {
 
             @Test
             fun `register server side verification customData when ssv info exist and it has customData`() {
-
                 mockConstruction(ServerSideVerificationOptions.Builder::class.java).use { ssvOptionsMockedConstruction ->
 
                     val adOptions =
@@ -199,7 +198,8 @@ internal class RewardedAdCallbackAndListenersTest {
 
                     listener = RewardedAdCallbackAndListeners.getRewardedAdLoadCallback(
                         pluginCall,
-                        notifierMock, adOptions
+                        notifierMock,
+                        adOptions
                     )
 
                     // Act
@@ -208,13 +208,11 @@ internal class RewardedAdCallbackAndListenersTest {
                     val ssvOptions = ssvOptionsMockedConstruction.constructed()[0]
                     verify(ssvOptions).setCustomData(adOptions.ssvInfo.customData!!)
                     verify(ssvOptions, times(0)).setUserId(any())
-
                 }
             }
 
             @Test
             fun `register server side verification userId data when ssv info exist and has userId`() {
-
                 mockConstruction(ServerSideVerificationOptions.Builder::class.java).use { ssvOptionsMockedConstruction ->
 
                     val adOptions =
@@ -223,7 +221,8 @@ internal class RewardedAdCallbackAndListenersTest {
 
                     listener = RewardedAdCallbackAndListeners.getRewardedAdLoadCallback(
                         pluginCall,
-                        notifierMock, adOptions
+                        notifierMock,
+                        adOptions
                     )
 
                     // Act
@@ -233,12 +232,9 @@ internal class RewardedAdCallbackAndListenersTest {
 
                     verify(ssvOptions).setUserId(adOptions.ssvInfo.userId!!)
                     verify(ssvOptions, times(0)).setCustomData(any())
-
                 }
             }
         }
-
-
     }
 
     // TODO: JUST CHECK CALL CREATION
@@ -251,7 +247,8 @@ internal class RewardedAdCallbackAndListenersTest {
         fun beforeEach() {
             argumentCaptor = ArgumentCaptor.forClass(JSObject::class.java)
             listener = FullscreenPluginCallback(
-                RewardAdPluginEvents, notifierMock
+                RewardAdPluginEvents,
+                notifierMock
             )
         }
 
@@ -260,7 +257,6 @@ internal class RewardedAdCallbackAndListenersTest {
 
             @Test
             fun `onAdShowedFullScreenContent call Showed event listener `() {
-
                 // ACt
                 listener.onAdShowedFullScreenContent()
 
@@ -274,7 +270,7 @@ internal class RewardedAdCallbackAndListenersTest {
             fun `onAdFailedToShowFullScreenContent call FailedToShow event listener `() {
                 var wantedReason = "This is the reason"
                 var wantedErrorCode = 1
-                var adErrorMock = Mockito.mock(AdError::class.java);
+                var adErrorMock = Mockito.mock(AdError::class.java)
                 Mockito.`when`(adErrorMock.code).thenReturn(wantedErrorCode)
                 Mockito.`when`(adErrorMock.message).thenReturn(wantedReason)
 
@@ -293,7 +289,6 @@ internal class RewardedAdCallbackAndListenersTest {
 
             @Test
             fun `onAdDismissedFullScreenContent call Dismissed event listener `() {
-
                 // ACt
                 listener.onAdDismissedFullScreenContent()
 

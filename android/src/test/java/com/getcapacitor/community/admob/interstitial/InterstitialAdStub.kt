@@ -6,15 +6,13 @@ import com.google.android.gms.ads.OnPaidEventListener
 import com.google.android.gms.ads.ResponseInfo
 import com.google.android.gms.ads.interstitial.InterstitialAd
 
-internal class InterstitialAdStub: InterstitialAd() {
+internal class InterstitialAdStub : InterstitialAd() {
 
-    private var immersiveMode = false;
+    private var immersiveMode = false
     private var fullScreenContentCallback: FullScreenContentCallback? = null
     private var onPaidEventListener: OnPaidEventListener? = null
 
-    override fun getAdUnitId(): String {
-        return "adUnit"
-    }
+    override fun getAdUnitId(): String = "adUnit"
 
     override fun show(p0: Activity) {
         TODO("Not yet implemented")
@@ -24,9 +22,7 @@ internal class InterstitialAdStub: InterstitialAd() {
         fullScreenContentCallback = p0
     }
 
-    override fun getFullScreenContentCallback(): FullScreenContentCallback? {
-        return fullScreenContentCallback
-    }
+    override fun getFullScreenContentCallback(): FullScreenContentCallback? = fullScreenContentCallback
 
     override fun setImmersiveMode(p0: Boolean) {
         immersiveMode = p0
@@ -40,16 +36,11 @@ internal class InterstitialAdStub: InterstitialAd() {
         onPaidEventListener = p0
     }
 
-    override fun getOnPaidEventListener(): OnPaidEventListener? {
-        return onPaidEventListener
-    }
+    override fun getOnPaidEventListener(): OnPaidEventListener? = onPaidEventListener
 
-    override fun getPlacementId(): Long {
-        return 0L
-    }
+    override fun getPlacementId(): Long = 0L
 
     override fun setPlacementId(p0: Long) {
         TODO("Not yet implemented")
     }
-
 }

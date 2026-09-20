@@ -28,6 +28,11 @@ jobs:
           cache: npm
           cache-dependency-path: '**/package-lock.json'
       - run: npm install
+      - name: Install ktlint
+        run: |
+          curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint
+          chmod a+x ktlint
+          sudo mv ktlint /usr/local/bin/
       - run: npm run lint
 
   test:
@@ -40,6 +45,11 @@ jobs:
           cache: npm
           cache-dependency-path: '**/package-lock.json'
       - run: npm install
+      - name: Install ktlint
+        run: |
+          curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint
+          chmod a+x ktlint
+          sudo mv ktlint /usr/local/bin/
       - run: npm run lint
 
   test-demo:
@@ -102,4 +112,5 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: '**/package-lock.json'
+      - run: npm install
       - run: npm run verify:ios

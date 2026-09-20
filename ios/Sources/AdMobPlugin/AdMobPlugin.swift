@@ -10,28 +10,28 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AdMob"
     public let jsName = "AdMob"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "initialize", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "trackingAuthorizationStatus", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestConsentInfo", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showPrivacyOptionsForm", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestTrackingAuthorization", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showConsentForm", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "resetConsentInfo", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setApplicationMuted", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setApplicationVolume", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showBanner", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "resumeBanner", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "hideBanner", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "removeBanner", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "prepareInterstitial", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showInterstitial", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "prepareRewardVideoAd", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showRewardVideoAd", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "prepareRewardInterstitialAd", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showRewardInterstitialAd", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "loadAppOpen", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "showAppOpen", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "isAppOpenLoaded", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "initialize", returnType: .promise),
+        CAPPluginMethod(name: "trackingAuthorizationStatus", returnType: .promise),
+        CAPPluginMethod(name: "requestConsentInfo", returnType: .promise),
+        CAPPluginMethod(name: "showPrivacyOptionsForm", returnType: .promise),
+        CAPPluginMethod(name: "requestTrackingAuthorization", returnType: .promise),
+        CAPPluginMethod(name: "showConsentForm", returnType: .promise),
+        CAPPluginMethod(name: "resetConsentInfo", returnType: .promise),
+        CAPPluginMethod(name: "setApplicationMuted", returnType: .promise),
+        CAPPluginMethod(name: "setApplicationVolume", returnType: .promise),
+        CAPPluginMethod(name: "showBanner", returnType: .promise),
+        CAPPluginMethod(name: "resumeBanner", returnType: .promise),
+        CAPPluginMethod(name: "hideBanner", returnType: .promise),
+        CAPPluginMethod(name: "removeBanner", returnType: .promise),
+        CAPPluginMethod(name: "prepareInterstitial", returnType: .promise),
+        CAPPluginMethod(name: "showInterstitial", returnType: .promise),
+        CAPPluginMethod(name: "prepareRewardVideoAd", returnType: .promise),
+        CAPPluginMethod(name: "showRewardVideoAd", returnType: .promise),
+        CAPPluginMethod(name: "prepareRewardInterstitialAd", returnType: .promise),
+        CAPPluginMethod(name: "showRewardInterstitialAd", returnType: .promise),
+        CAPPluginMethod(name: "loadAppOpen", returnType: .promise),
+        CAPPluginMethod(name: "showAppOpen", returnType: .promise),
+        CAPPluginMethod(name: "isAppOpenLoaded", returnType: .promise)
     ]
     private let appOpenAdPlugin = AppOpenAdPlugin()
     @objc func loadAppOpen(_ call: CAPPluginCall) {
@@ -86,17 +86,13 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
      * DEPRECATED: It's now ship with Admob UMP Consent
      */
     @objc func requestTrackingAuthorization(_ call: CAPPluginCall) {
-        if #available(iOS 14, *) {
-            #if canImport(AppTrackingTransparency)
-            ATTrackingManager.requestTrackingAuthorization(completionHandler: { _ in
-                call.resolve([:])
-            })
-            #else
+        #if canImport(AppTrackingTransparency)
+        ATTrackingManager.requestTrackingAuthorization(completionHandler: { _ in
             call.resolve([:])
-            #endif
-        } else {
-            call.resolve([:])
-        }
+        })
+        #else
+        call.resolve([:])
+        #endif
     }
 
     @objc func setApplicationMuted(_ call: CAPPluginCall) {
@@ -213,21 +209,17 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func trackingAuthorizationStatus(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            if #available(iOS 14, *) {
-                switch ATTrackingManager.trackingAuthorizationStatus {
-                case .authorized:
-                    call.resolve(["status": AuthorizationStatusEnum.Authorized.rawValue])
-                case .denied:
-                    call.resolve(["status": AuthorizationStatusEnum.Denied.rawValue])
-                case .restricted:
-                    call.resolve(["status": AuthorizationStatusEnum.Restricted.rawValue])
-                case .notDetermined:
-                    call.resolve(["status": AuthorizationStatusEnum.NotDetermined.rawValue])
-                @unknown default:
-                    call.reject("trackingAuthorizationStatus can't get status")
-                }
-            } else {
-                call.resolve(["status": AuthorizationStatusEnum.Authorized])
+            switch ATTrackingManager.trackingAuthorizationStatus {
+            case .authorized:
+                call.resolve(["status": AuthorizationStatusEnum.Authorized.rawValue])
+            case .denied:
+                call.resolve(["status": AuthorizationStatusEnum.Denied.rawValue])
+            case .restricted:
+                call.resolve(["status": AuthorizationStatusEnum.Restricted.rawValue])
+            case .notDetermined:
+                call.resolve(["status": AuthorizationStatusEnum.NotDetermined.rawValue])
+            @unknown default:
+                call.reject("trackingAuthorizationStatus can't get status")
             }
         }
     }

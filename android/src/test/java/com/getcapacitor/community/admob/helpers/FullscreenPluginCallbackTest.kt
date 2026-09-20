@@ -5,7 +5,11 @@ import com.getcapacitor.community.admob.models.LoadPluginEventNames
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.common.util.BiConsumer
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers
@@ -17,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
 internal class FullscreenPluginCallbackTest {
 
-    object LoadPluginObject: LoadPluginEventNames {
+    object LoadPluginObject : LoadPluginEventNames {
         override val Showed: String
             get() = "ShowedEvent"
         override val FailedToShow: String
@@ -27,10 +31,10 @@ internal class FullscreenPluginCallbackTest {
     }
 
     @Mock
-    lateinit var  notifierMock: BiConsumer<String, JSObject>
+    lateinit var notifierMock: BiConsumer<String, JSObject>
 
     private lateinit var argumentCaptor: ArgumentCaptor<JSObject>
-    private lateinit var  sut: FullScreenContentCallback
+    private lateinit var sut: FullScreenContentCallback
 
     @BeforeEach
     fun beforeEach() {
@@ -43,7 +47,6 @@ internal class FullscreenPluginCallbackTest {
 
         @Test
         fun `onAdShowedFullScreenContent call Showed event listener `() {
-
             // ACt
             sut.onAdShowedFullScreenContent()
 
@@ -54,7 +57,7 @@ internal class FullscreenPluginCallbackTest {
         fun `onAdFailedToShowFullScreenContent call FailedToShow event listener `() {
             val wantedReason = "This is the reason"
             val wantedErrorCode = 1
-            val adErrorMock = Mockito.mock(AdError::class.java);
+            val adErrorMock = Mockito.mock(AdError::class.java)
             Mockito.`when`(adErrorMock.code).thenReturn(wantedErrorCode)
             Mockito.`when`(adErrorMock.message).thenReturn(wantedReason)
 
@@ -70,7 +73,6 @@ internal class FullscreenPluginCallbackTest {
 
         @Test
         fun `onAdDismissedFullScreenContent call Dismissed event listener `() {
-
             // ACt
             sut.onAdDismissedFullScreenContent()
 

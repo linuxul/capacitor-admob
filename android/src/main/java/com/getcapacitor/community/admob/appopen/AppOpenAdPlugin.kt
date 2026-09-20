@@ -9,10 +9,10 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.community.admob.models.AdMobPluginError
 import com.getcapacitor.community.admob.models.AdMobRevenueData
 
-class AppOpenAdPlugin {
+public class AppOpenAdPlugin {
 
-    fun interface EventNotifier {
-        fun notify(eventName: String, data: JSObject)
+    public fun interface EventNotifier {
+        public fun notify(eventName: String, data: JSObject)
     }
 
     private val preparedManagers = LinkedHashMap<String, AppOpenAdManager>()
@@ -26,7 +26,7 @@ class AppOpenAdPlugin {
         }
     }
 
-    fun loadAppOpen(context: Context?, activity: Activity?, call: PluginCall, notifier: EventNotifier) {
+    public fun loadAppOpen(context: Context?, activity: Activity?, call: PluginCall, notifier: EventNotifier) {
         if (context == null) {
             call.reject("Context is not available")
             return
@@ -66,7 +66,7 @@ class AppOpenAdPlugin {
         }
     }
 
-    fun showAppOpen(activity: Activity?, call: PluginCall, notifier: EventNotifier) {
+    public fun showAppOpen(activity: Activity?, call: PluginCall, notifier: EventNotifier) {
         if (activity == null) {
             call.reject("Activity is not available")
             return
@@ -109,7 +109,7 @@ class AppOpenAdPlugin {
         }
     }
 
-    fun isAppOpenLoaded(activity: Activity?, call: PluginCall) {
+    public fun isAppOpenLoaded(activity: Activity?, call: PluginCall) {
         val adId = call.getString("adId") ?: lastPreparedAdId
         runOnMain(activity) {
             val loaded = adId?.let { preparedManagers[it]?.isAdLoaded } ?: false

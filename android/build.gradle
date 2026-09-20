@@ -10,25 +10,26 @@ ext {
 }
 
 buildscript {
-    ext.kotlin_version = project.hasProperty("kotlin_version") ? rootProject.ext.kotlin_version : '2.2.20'
+    // Follows the app's kotlin_version so the app, the Capacitor runtime and the plugins share one Kotlin Gradle plugin
+    ext.kotlin_gradle_version = project.hasProperty('kotlin_version') ? rootProject.ext.kotlin_version : '2.2.20'
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_gradle_version"
     }
 }
 
 apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace = "com.getcapacitor.community.admob.admob"
     compileSdk = project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 36
     defaultConfig {
-        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 24
+        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 33
         targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 36
         versionCode 1
         versionName "1.0"
@@ -40,16 +41,18 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-    lintOptions {
+    lint {
         abortOnError = false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_21
-    }
+}
+
+kotlin {
+    jvmToolchain(21)
+    explicitApi()
 }
 
 repositories {
@@ -75,16 +78,16 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-params:5.11.4"
     testRuntimeOnly "org.junit.vintage:junit-vintage-engine:5.11.4"
     testImplementation 'org.json:json:20231013'
-    // We do not need expresso tests here... or?
-    //    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
-    //    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    // Needed to compile src/androidTest (./gradlew assembleAndroidTest)
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
 
     implementation "com.google.android.gms:play-services-ads:$playServicesAdsVersion"
     implementation "com.google.android.ump:user-messaging-platform:$userMessagingPlatformVersion"
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-ktx:$androidxCoreKTXVersion"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_gradle_version"
 }
 
 // Allow to run unit test with  ./gradlew test

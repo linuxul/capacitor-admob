@@ -1,7 +1,10 @@
+// The names mirror the event enums of the TypeScript API.
+@file:Suppress("ktlint:standard:property-naming")
+
 package com.getcapacitor.community.admob.models
 
-interface LoadPluginEventNames {
-    val Showed: String
-    val FailedToShow: String
-    val Dismissed: String
+public interface LoadPluginEventNames {
+    public val Showed: String
+    public val FailedToShow: String
+    public val Dismissed: String
 }

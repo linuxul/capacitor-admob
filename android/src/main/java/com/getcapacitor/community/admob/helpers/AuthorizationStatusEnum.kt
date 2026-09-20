@@ -1,5 +1,5 @@
 package com.getcapacitor.community.admob.helpers
 
-enum class AuthorizationStatusEnum(val status: String) {
-    AUTHORIZED("authorized");
+public enum class AuthorizationStatusEnum(public val status: String) {
+    AUTHORIZED("authorized")
 }
