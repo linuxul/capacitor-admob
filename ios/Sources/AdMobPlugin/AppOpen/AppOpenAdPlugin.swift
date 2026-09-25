@@ -93,9 +93,9 @@ import UIKit
         }
     }
 
-    @objc func isAppOpenLoaded(_ call: CAPPluginCall) {
-        let adId = call.getString("adId") ?? lastPreparedAdId
-        let loaded = adId.flatMap { preparedManagers[$0]?.isAdLoaded() } ?? false
-        call.resolve(["value": loaded])
+    /// Whether the ad `adId`, or the last one prepared, is loaded. Call on the main thread, where the ads are prepared.
+    func isAppOpenLoaded(adId: String?) -> Bool {
+        let adId = adId ?? lastPreparedAdId
+        return adId.flatMap { preparedManagers[$0]?.isAdLoaded() } ?? false
     }
 }

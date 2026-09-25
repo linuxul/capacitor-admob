@@ -6,7 +6,9 @@ import UserMessagingPlatform
 class ConsentExecutor: NSObject {
     weak var plugin: AdMobPlugin?
 
-    func requestConsentInfo(_ call: CAPPluginCall, _ debugGeography: Int, _ testDeviceIdentifiers: [String], _ tagForUnderAgeOfConsent: Bool) {
+    /// Updates the consent information and returns it. The UMP SDK is used from the main thread only.
+    @MainActor
+    func requestConsentInfo(_ debugGeography: Int, _ testDeviceIdentifiers: [String], _ tagForUnderAgeOfConsent: Bool) async throws -> JSObject {
         let parameters = RequestParameters()
         let debugSettings = DebugSettings()
 
@@ -17,62 +19,52 @@ class ConsentExecutor: NSObject {
         parameters.isTaggedForUnderAgeOfConsent = tagForUnderAgeOfConsent
 
         // Request an update to the consent information.
-        ConsentInformation.shared.requestConsentInfoUpdate(
-            with: parameters,
-            completionHandler: { error in
-                if error != nil {
-                    call.reject("Request consent info failed")
-                } else {
-                    call.resolve([
-                        "status": self.getConsentStatusString(ConsentInformation.shared.consentStatus),
-                        "isConsentFormAvailable": ConsentInformation.shared.formStatus == FormStatus.available,
-                        "canRequestAds": ConsentInformation.shared.canRequestAds,
-                        "privacyOptionsRequirementStatus": self.getPrivacyOptionsRequirementStatus(ConsentInformation.shared.privacyOptionsRequirementStatus)
-                    ])
-                }
-            })
+        do {
+            try await ConsentInformation.shared.requestConsentInfoUpdate(with: parameters)
+        } catch {
+            throw CAPPluginError("Request consent info failed", underlyingError: error)
+        }
+        return [
+            "status": self.getConsentStatusString(ConsentInformation.shared.consentStatus),
+            "isConsentFormAvailable": ConsentInformation.shared.formStatus == FormStatus.available,
+            "canRequestAds": ConsentInformation.shared.canRequestAds,
+            "privacyOptionsRequirementStatus": self.getPrivacyOptionsRequirementStatus(ConsentInformation.shared.privacyOptionsRequirementStatus)
+        ]
     }
 
     @MainActor
-    func showPrivacyOptionsForm(_ call: CAPPluginCall) {
+    func showPrivacyOptionsForm() async throws {
         guard let rootViewController = plugin?.getRootVC() else {
-            return call.reject("No ViewController")
+            throw CAPPluginError("No ViewController")
         }
 
-        Task {
-            do {
-                try await ConsentForm.presentPrivacyOptionsForm(from: rootViewController)
-                call.resolve()
-            } catch {
-                call.reject("Failed to show privacy options form: \(error.localizedDescription)")
-            }
+        do {
+            try await ConsentForm.presentPrivacyOptionsForm(from: rootViewController)
+        } catch {
+            throw CAPPluginError("Failed to show privacy options form: \(error.localizedDescription)", underlyingError: error)
         }
     }
 
-    func showConsentForm(_ call: CAPPluginCall) {
-        if let rootViewController = plugin?.getRootVC() {
-            let formStatus = ConsentInformation.shared.formStatus
-
-            if formStatus == FormStatus.available {
-                Task { @MainActor in
-                    do {
-                        try await ConsentForm.loadAndPresentIfRequired(from: rootViewController)
-
-                        call.resolve([
-                            "status": self.getConsentStatusString(ConsentInformation.shared.consentStatus),
-                            "canRequestAds": ConsentInformation.shared.canRequestAds,
-                            "privacyOptionsRequirementStatus": self.getPrivacyOptionsRequirementStatus(ConsentInformation.shared.privacyOptionsRequirementStatus)
-                        ])
-                    } catch {
-                        call.reject("Request consent info failed")
-                    }
-                }
-            } else {
-                call.reject("Consent Form not available")
-            }
-        } else {
-            call.reject("No ViewController")
+    /// Loads and presents the consent form if it is required, and returns the consent information afterwards.
+    @MainActor
+    func showConsentForm() async throws -> JSObject {
+        guard let rootViewController = plugin?.getRootVC() else {
+            throw CAPPluginError("No ViewController")
         }
+        guard ConsentInformation.shared.formStatus == FormStatus.available else {
+            throw CAPPluginError("Consent Form not available")
+        }
+
+        do {
+            try await ConsentForm.loadAndPresentIfRequired(from: rootViewController)
+        } catch {
+            throw CAPPluginError("Request consent info failed", underlyingError: error)
+        }
+        return [
+            "status": self.getConsentStatusString(ConsentInformation.shared.consentStatus),
+            "canRequestAds": ConsentInformation.shared.canRequestAds,
+            "privacyOptionsRequirementStatus": self.getPrivacyOptionsRequirementStatus(ConsentInformation.shared.privacyOptionsRequirementStatus)
+        ]
     }
 
     func resetConsentInfo(_ call: CAPPluginCall) {

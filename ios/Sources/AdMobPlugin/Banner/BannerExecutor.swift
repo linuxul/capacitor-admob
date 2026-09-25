@@ -67,24 +67,23 @@ class BannerExecutor: NSObject, BannerViewDelegate {
         }
     }
 
+    // AdMobPlugin calls these on the main queue, in the order of the JavaScript calls.
     func hideBanner(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            if let rootViewController = self.plugin?.getRootVC() {
-                if let subView = rootViewController.view.viewWithTag(2743243288699) {
-                    NSLog("AdMob: find subView for hideBanner")
-                    subView.isHidden = true
-                } else {
-                    NSLog("AdMob: not find subView for resumeBanner for hideBanner")
-                }
+        if let rootViewController = self.plugin?.getRootVC() {
+            if let subView = rootViewController.view.viewWithTag(2743243288699) {
+                NSLog("AdMob: find subView for hideBanner")
+                subView.isHidden = true
+            } else {
+                NSLog("AdMob: not find subView for resumeBanner for hideBanner")
             }
-
-            self.plugin?.notifyListeners(BannerAdPluginEvents.SizeChanged.rawValue, data: [
-                "width": 0,
-                "height": 0
-            ])
-
-            call.resolve([:])
         }
+
+        self.plugin?.notifyListeners(BannerAdPluginEvents.SizeChanged.rawValue, data: [
+            "width": 0,
+            "height": 0
+        ])
+
+        call.resolve([:])
     }
 
     func resumeBanner(_ call: CAPPluginCall) {

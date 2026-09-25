@@ -10,31 +10,38 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AdMob"
     public let jsName = "AdMob"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "initialize", returnType: .promise),
-        CAPPluginMethod(name: "trackingAuthorizationStatus", returnType: .promise),
-        CAPPluginMethod(name: "requestConsentInfo", returnType: .promise),
-        CAPPluginMethod(name: "showPrivacyOptionsForm", returnType: .promise),
-        CAPPluginMethod(name: "requestTrackingAuthorization", returnType: .promise),
-        CAPPluginMethod(name: "showConsentForm", returnType: .promise),
-        CAPPluginMethod(name: "resetConsentInfo", returnType: .promise),
-        CAPPluginMethod(name: "setApplicationMuted", returnType: .promise),
-        CAPPluginMethod(name: "setApplicationVolume", returnType: .promise),
-        CAPPluginMethod(name: "showBanner", returnType: .promise),
-        CAPPluginMethod(name: "resumeBanner", returnType: .promise),
-        CAPPluginMethod(name: "hideBanner", returnType: .promise),
-        CAPPluginMethod(name: "removeBanner", returnType: .promise),
-        CAPPluginMethod(name: "prepareInterstitial", returnType: .promise),
-        CAPPluginMethod(name: "showInterstitial", returnType: .promise),
-        CAPPluginMethod(name: "prepareRewardVideoAd", returnType: .promise),
-        CAPPluginMethod(name: "showRewardVideoAd", returnType: .promise),
-        CAPPluginMethod(name: "prepareRewardInterstitialAd", returnType: .promise),
-        CAPPluginMethod(name: "showRewardInterstitialAd", returnType: .promise),
-        CAPPluginMethod(name: "loadAppOpen", returnType: .promise),
-        CAPPluginMethod(name: "showAppOpen", returnType: .promise),
-        CAPPluginMethod(name: "isAppOpenLoaded", returnType: .promise)
+        .promise("initialize", AdMobPlugin.initialize),
+        .async("trackingAuthorizationStatus", AdMobPlugin.trackingAuthorizationStatus),
+        .async("requestConsentInfo", AdMobPlugin.requestConsentInfo),
+        .async("showPrivacyOptionsForm", AdMobPlugin.showPrivacyOptionsForm),
+        .async("requestTrackingAuthorization", AdMobPlugin.requestTrackingAuthorization),
+        .async("showConsentForm", AdMobPlugin.showConsentForm),
+        .promise("resetConsentInfo", AdMobPlugin.resetConsentInfo),
+        .promise("setApplicationMuted", AdMobPlugin.setApplicationMuted),
+        .promise("setApplicationVolume", AdMobPlugin.setApplicationVolume),
+        .promise("showBanner", AdMobPlugin.showBanner),
+        .promise("resumeBanner", AdMobPlugin.resumeBanner),
+        .promise("hideBanner", AdMobPlugin.hideBanner),
+        .promise("removeBanner", AdMobPlugin.removeBanner),
+        .promise("prepareInterstitial", AdMobPlugin.prepareInterstitial),
+        .promise("showInterstitial", AdMobPlugin.showInterstitial),
+        .promise("prepareRewardVideoAd", AdMobPlugin.prepareRewardVideoAd),
+        .promise("showRewardVideoAd", AdMobPlugin.showRewardVideoAd),
+        .promise("prepareRewardInterstitialAd", AdMobPlugin.prepareRewardInterstitialAd),
+        .promise("showRewardInterstitialAd", AdMobPlugin.showRewardInterstitialAd),
+        .promise("loadAppOpen", AdMobPlugin.loadAppOpen),
+        .promise("showAppOpen", AdMobPlugin.showAppOpen),
+        .async("isAppOpenLoaded", AdMobPlugin.isAppOpenLoaded)
     ]
+
+    // Initialization, the settings, and loading, showing, hiding and removing ads stay synchronous: the bridge queue
+    // runs them in the order of the calls and they hand their UIKit and SDK work to the main queue in that order,
+    // which async methods would not keep. Their results come from SDK callbacks and delegates (a rewarded ad resolves
+    // only when the reward is earned), which they keep. The methods that only read a status, ask for tracking
+    // authorization, or update and present the consent forms are async methods on the main actor.
+
     private let appOpenAdPlugin = AppOpenAdPlugin()
-    @objc func loadAppOpen(_ call: CAPPluginCall) {
+    func loadAppOpen(_ call: CAPPluginCall) {
         appOpenAdPlugin.loadAppOpen(
             call,
             notify: { [weak self] eventName, data in
@@ -43,7 +50,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
         )
     }
 
-    @objc func showAppOpen(_ call: CAPPluginCall) {
+    func showAppOpen(_ call: CAPPluginCall) {
         appOpenAdPlugin.showAppOpen(
             call,
             getRootViewController: self.getRootVC,
@@ -53,8 +60,10 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
         )
     }
 
-    @objc func isAppOpenLoaded(_ call: CAPPluginCall) {
-        appOpenAdPlugin.isAppOpenLoaded(call)
+    /// Runs on the main actor, where loadAppOpen and showAppOpen change the prepared ads.
+    @MainActor
+    func isAppOpenLoaded(_ call: CAPPluginCall) async -> JSObject {
+        ["value": appOpenAdPlugin.isAppOpenLoaded(adId: call.getString("adId"))]
     }
 
     var testingDevices: [String] = []
@@ -69,7 +78,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
      * Enable SKAdNetwork to track conversions
      * https://developers.google.com/admob/ios/ios14
      */
-    @objc func initialize(_ call: CAPPluginCall) {
+    func initialize(_ call: CAPPluginCall) {
         self.bannerExecutor.plugin = self
         self.adInterstitialExecutor.plugin = self
         self.adRewardExecutor.plugin = self
@@ -85,45 +94,39 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
     /**
      * DEPRECATED: It's now ship with Admob UMP Consent
      */
-    @objc func requestTrackingAuthorization(_ call: CAPPluginCall) {
+    @MainActor
+    func requestTrackingAuthorization(_ call: CAPPluginCall) async -> JSObject {
         #if canImport(AppTrackingTransparency)
-        ATTrackingManager.requestTrackingAuthorization(completionHandler: { _ in
-            call.resolve([:])
-        })
-        #else
-        call.resolve([:])
+        _ = await ATTrackingManager.requestTrackingAuthorization()
         #endif
+        return [:]
     }
 
-    @objc func setApplicationMuted(_ call: CAPPluginCall) {
-        if let shouldMute = call.getBool("muted") {
-            MobileAds.shared.isApplicationMuted = shouldMute
-            call.resolve([:])
-        } else {
-            call.reject("muted property cannot be null")
-            return
+    func setApplicationMuted(_ call: CAPPluginCall) throws {
+        guard let shouldMute = call.getBool("muted") else {
+            throw CAPPluginError("muted property cannot be null")
         }
+        MobileAds.shared.isApplicationMuted = shouldMute
+        call.resolve([:])
     }
 
-    @objc func setApplicationVolume(_ call: CAPPluginCall) {
-        if var volume = call.getFloat("volume") {
-            // Clamp volumes.
-            if volume < 0.0 {volume = 0.0} else if volume > 1.0 {volume = 1.0}
-
-            MobileAds.shared.applicationVolume = volume
-
-            call.resolve([:])
-        } else {
-            call.reject("volume property cannot be null")
-            return
+    func setApplicationVolume(_ call: CAPPluginCall) throws {
+        guard var volume = call.getFloat("volume") else {
+            throw CAPPluginError("volume property cannot be null")
         }
+        // Clamp volumes.
+        if volume < 0.0 {volume = 0.0} else if volume > 1.0 {volume = 1.0}
+
+        MobileAds.shared.applicationVolume = volume
+
+        call.resolve([:])
     }
 
     /**
      *  AdMob: Banner
      *  https://developers.google.com/ad-manager/mobile-ads-sdk/ios/banner?hl=ja
      */
-    @objc func showBanner(_ call: CAPPluginCall) {
+    func showBanner(_ call: CAPPluginCall) {
         let adUnitID = getAdId(call, "ca-app-pub-3940256099942544/6300978111")
         let request = self.GADRequestWithOption(call.getBool("npa") ?? false)
 
@@ -132,19 +135,19 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func hideBanner(_ call: CAPPluginCall) {
+    func hideBanner(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.bannerExecutor.hideBanner(call)
         }
     }
 
-    @objc func resumeBanner(_ call: CAPPluginCall) {
+    func resumeBanner(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.bannerExecutor.resumeBanner(call)
         }
     }
 
-    @objc func removeBanner(_ call: CAPPluginCall) {
+    func removeBanner(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.bannerExecutor.removeBanner(call)
         }
@@ -154,7 +157,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
      *  AdMob: Intertitial
      *  https://developers.google.com/admob/ios/interstitial?hl=ja
      */
-    @objc func prepareInterstitial(_ call: CAPPluginCall) {
+    func prepareInterstitial(_ call: CAPPluginCall) {
         let adUnitID = getAdId(call, "ca-app-pub-3940256099942544/1033173712")
         let request = self.GADRequestWithOption(call.getBool("npa") ?? false)
 
@@ -163,7 +166,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func showInterstitial(_ call: CAPPluginCall) {
+    func showInterstitial(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.adInterstitialExecutor.showInterstitial(call)
         }
@@ -173,7 +176,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
      *  AdMob: Rewarded Ads
      *  https://developers.google.com/ad-manager/mobile-ads-sdk/ios/rewarded-ads
      */
-    @objc func prepareRewardVideoAd(_ call: CAPPluginCall) {
+    func prepareRewardVideoAd(_ call: CAPPluginCall) {
         let adUnitID = getAdId(call, "ca-app-pub-3940256099942544/1712485313")
         let request = self.GADRequestWithOption(call.getBool("npa") ?? false)
 
@@ -182,7 +185,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func showRewardVideoAd(_ call: CAPPluginCall) {
+    func showRewardVideoAd(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.adRewardExecutor.showRewardVideoAd(call)
         }
@@ -192,7 +195,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
      *  AdMob: Rewarded Interstitial Ads
      *  https://developers.google.com/ad-manager/mobile-ads-sdk/ios/rewarded-interstitial
      */
-    @objc func prepareRewardInterstitialAd(_ call: CAPPluginCall) {
+    func prepareRewardInterstitialAd(_ call: CAPPluginCall) {
         let adUnitID = getAdId(call, "ca-app-pub-3940256099942544/6978759866")
         let request = self.GADRequestWithOption(call.getBool("npa") ?? false)
 
@@ -201,26 +204,33 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func showRewardInterstitialAd(_ call: CAPPluginCall) {
+    func showRewardInterstitialAd(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.adRewardInterstitialExecutor.showRewardInterstitialAd(call)
         }
     }
 
-    @objc func trackingAuthorizationStatus(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            switch ATTrackingManager.trackingAuthorizationStatus {
-            case .authorized:
-                call.resolve(["status": AuthorizationStatusEnum.Authorized.rawValue])
-            case .denied:
-                call.resolve(["status": AuthorizationStatusEnum.Denied.rawValue])
-            case .restricted:
-                call.resolve(["status": AuthorizationStatusEnum.Restricted.rawValue])
-            case .notDetermined:
-                call.resolve(["status": AuthorizationStatusEnum.NotDetermined.rawValue])
-            @unknown default:
-                call.reject("trackingAuthorizationStatus can't get status")
-            }
+    @MainActor
+    func trackingAuthorizationStatus(_ call: CAPPluginCall) async throws -> JSObject {
+        guard let status = AdMobPlugin.trackingStatus(ATTrackingManager.trackingAuthorizationStatus) else {
+            throw CAPPluginError("trackingAuthorizationStatus can't get status")
+        }
+        return ["status": status.rawValue]
+    }
+
+    /// The status JavaScript receives for an App Tracking Transparency status, or nil for a status this plugin does not know.
+    static func trackingStatus(_ status: ATTrackingManager.AuthorizationStatus) -> AuthorizationStatusEnum? {
+        switch status {
+        case .authorized:
+            return .Authorized
+        case .denied:
+            return .Denied
+        case .restricted:
+            return .Restricted
+        case .notDetermined:
+            return .NotDetermined
+        @unknown default:
+            return nil
         }
     }
 
@@ -228,7 +238,8 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
      * Admob: User Message Platform
      * https://support.google.com/admob/answer/10113005?hl=en
      */
-    @objc func requestConsentInfo(_ call: CAPPluginCall) {
+    @MainActor
+    func requestConsentInfo(_ call: CAPPluginCall) async throws -> JSObject {
         let debugGeography = call.getInt("debugGeography", 0)
 
         let testDeviceJSArray = call.getArray("testDeviceIdentifiers") ?? []
@@ -243,24 +254,20 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
 
         let tagForUnderAgeOfConsent = call.getBool("tagForUnderAgeOfConsent", false)
 
-        DispatchQueue.main.async {
-            self.consentExecutor.requestConsentInfo(call, debugGeography, testDeviceIdentifiers, tagForUnderAgeOfConsent)
-        }
+        return try await consentExecutor.requestConsentInfo(debugGeography, testDeviceIdentifiers, tagForUnderAgeOfConsent)
     }
 
-    @objc func showConsentForm(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            self.consentExecutor.showConsentForm(call)
-        }
+    @MainActor
+    func showConsentForm(_ call: CAPPluginCall) async throws -> JSObject {
+        try await consentExecutor.showConsentForm()
     }
 
-    @objc func showPrivacyOptionsForm(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            self.consentExecutor.showPrivacyOptionsForm(call)
-        }
+    @MainActor
+    func showPrivacyOptionsForm(_ call: CAPPluginCall) async throws {
+        try await consentExecutor.showPrivacyOptionsForm()
     }
 
-    @objc func resetConsentInfo(_ call: CAPPluginCall) {
+    func resetConsentInfo(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.consentExecutor.resetConsentInfo(call)
         }
