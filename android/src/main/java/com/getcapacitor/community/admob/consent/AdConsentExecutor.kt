@@ -74,6 +74,7 @@ public class AdConsentExecutor(
         }
     }
 
+    // Called on the main thread, where the forms are shown.
     @Suppress("UNUSED_PARAMETER")
     public fun showPrivacyOptionsForm(call: PluginCall, notifyListenersFunction: BiConsumer<String, JSObject>?) {
         try {
@@ -83,13 +84,11 @@ public class AdConsentExecutor(
                 return
             }
             ensureConsentInfo()
-            activity.runOnUiThread {
-                UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
-                    if (formError != null) {
-                        call.reject("Error when show privacy form", formError.message)
-                    } else {
-                        call.resolve()
-                    }
+            UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
+                if (formError != null) {
+                    call.reject("Error when show privacy form", formError.message)
+                } else {
+                    call.resolve()
                 }
             }
         } catch (ex: Exception) {
@@ -97,6 +96,7 @@ public class AdConsentExecutor(
         }
     }
 
+    // Called on the main thread, where the forms are shown.
     @Suppress("UNUSED_PARAMETER")
     public fun showConsentForm(call: PluginCall, notifyListenersFunction: BiConsumer<String, JSObject>?) {
         try {
@@ -107,19 +107,17 @@ public class AdConsentExecutor(
             }
 
             val consentInformation = ensureConsentInfo()
-            activity.runOnUiThread {
-                UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
-                    if (formError != null) {
-                        call.reject("Error when show consent form", formError.message)
-                        return@loadAndShowConsentFormIfRequired
-                    }
-
-                    val consentFormInfo = JSObject()
-                    consentFormInfo.put("status", getConsentStatusString(consentInformation.consentStatus))
-                    consentFormInfo.put("canRequestAds", consentInformation.canRequestAds())
-                    consentFormInfo.put("privacyOptionsRequirementStatus", consentInformation.privacyOptionsRequirementStatus.name)
-                    call.resolve(consentFormInfo)
+            UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
+                if (formError != null) {
+                    call.reject("Error when show consent form", formError.message)
+                    return@loadAndShowConsentFormIfRequired
                 }
+
+                val consentFormInfo = JSObject()
+                consentFormInfo.put("status", getConsentStatusString(consentInformation.consentStatus))
+                consentFormInfo.put("canRequestAds", consentInformation.canRequestAds())
+                consentFormInfo.put("privacyOptionsRequirementStatus", consentInformation.privacyOptionsRequirementStatus.name)
+                call.resolve(consentFormInfo)
             }
         } catch (ex: Exception) {
             call.reject(ex.localizedMessage, ex = ex)

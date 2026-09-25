@@ -21,7 +21,6 @@ import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
 import org.mockito.MockedStatic
 import org.mockito.Mockito
-import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
 
@@ -57,13 +56,6 @@ class AdConsentExecutorTest {
         listenerCaptor = ArgumentCaptor.forClass(ConsentForm.OnConsentFormDismissedListener::class.java)
 
         adConsentExecutor = AdConsentExecutor({ contextMock }, { activityMock }, notifierMock, LOG_TAG)
-
-        doAnswer { invocation ->
-            invocation.getArgument<Runnable>(0).run()
-            null
-        }
-            .`when`(activityMock)
-            .runOnUiThread(any(Runnable::class.java))
     }
 
     @AfterEach

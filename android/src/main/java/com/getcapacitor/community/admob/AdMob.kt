@@ -5,7 +5,9 @@ import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginException
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.PluginThread
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
 import com.getcapacitor.community.admob.appopen.AppOpenAdPlugin
@@ -19,6 +21,8 @@ import com.getcapacitor.community.admob.rewardedinterstitial.AdRewardInterstitia
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.common.util.BiConsumer
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import org.json.JSONException
 
 @CapacitorPlugin(
@@ -42,45 +46,47 @@ public class AdMob : Plugin() {
 
     private val appOpenAdPlugin = AppOpenAdPlugin()
 
-    @PluginMethod
+    // The methods that load, show, hide or remove ads and banners, show the consent forms, or initialize the SDK run
+    // on the main thread, where the Google Mobile Ads and UMP SDKs and the banner views must be used. They are posted
+    // there in the order of the calls, and their results still come from the SDK callbacks. The other methods run on
+    // the plugin thread, as before.
+
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun loadAppOpen(call: PluginCall) {
-        appOpenAdPlugin.loadAppOpen(context, activity, call, appOpenNotifier)
+        appOpenAdPlugin.loadAppOpen(context, call, appOpenNotifier)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showAppOpen(call: PluginCall) {
         appOpenAdPlugin.showAppOpen(activity, call, appOpenNotifier)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun isAppOpenLoaded(call: PluginCall) {
-        appOpenAdPlugin.isAppOpenLoaded(activity, call)
+        appOpenAdPlugin.isAppOpenLoaded(call)
     }
 
     // ---------------------------------------------------------
     // MAIN METHODS
     // ---------------------------------------------------------
 
-    @PluginMethod
-    public fun initialize(call: PluginCall) {
+    @PluginMethod(thread = PluginThread.MAIN)
+    public suspend fun initialize(call: PluginCall) {
         setRequestConfiguration(call)
 
-        // Same as banner/interstitial: bridge thread is not the UI thread — MobileAds + view setup must run on main.
-        activity.runOnUiThread {
-            try {
-                MobileAds.initialize(context) {}
-                // Resolve only once the banner parent actually exists, so a resolved
-                // initialize() means what callers already read it as. See #451.
-                bannerExecutor.awaitViewGroup { found ->
-                    if (found) {
-                        call.resolve()
-                    } else {
-                        call.reject("AdMob initialized, but the banner parent view never appeared")
-                    }
-                }
-            } catch (ex: Exception) {
-                call.reject(ex.localizedMessage, ex = ex)
-            }
+        val found = try {
+            MobileAds.initialize(context) {}
+            // Resolve only once the banner parent actually exists, so a resolved
+            // initialize() means what callers already read it as. See #451.
+            // awaitViewGroup reports exactly once, right away or from a layout pass or its timeout.
+            suspendCoroutine<Boolean> { continuation -> bannerExecutor.awaitViewGroup { continuation.resume(it) } }
+        } catch (ex: Exception) {
+            call.reject(ex.localizedMessage, ex = ex)
+            return
+        }
+
+        if (!found) {
+            throw PluginException("AdMob initialized, but the banner parent view never appeared")
         }
     }
 
@@ -105,12 +111,12 @@ public class AdMob : Plugin() {
         adConsentExecutor.requestConsentInfo(call, notifyListenersFunction)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showPrivacyOptionsForm(call: PluginCall) {
         adConsentExecutor.showPrivacyOptionsForm(call, notifyListenersFunction)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showConsentForm(call: PluginCall) {
         adConsentExecutor.showConsentForm(call, notifyListenersFunction)
     }
@@ -126,22 +132,14 @@ public class AdMob : Plugin() {
 
     @PluginMethod
     public fun setApplicationMuted(call: PluginCall) {
-        val muted = call.getBoolean("muted")
-        if (muted == null) {
-            call.reject("muted property cannot be null")
-            return
-        }
+        val muted = call.getBoolean("muted") ?: throw PluginException("muted property cannot be null")
         MobileAds.setAppMuted(muted)
         call.resolve()
     }
 
     @PluginMethod
     public fun setApplicationVolume(call: PluginCall) {
-        val volume = call.getFloat("volume")
-        if (volume == null) {
-            call.reject("volume property cannot be null")
-            return
-        }
+        val volume = call.getFloat("volume") ?: throw PluginException("volume property cannot be null")
         MobileAds.setAppVolume(volume)
         call.resolve()
     }
@@ -150,22 +148,22 @@ public class AdMob : Plugin() {
     // BANNER ADS
     // ---------------------------------------------------------
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showBanner(call: PluginCall) {
         bannerExecutor.showBanner(call)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun hideBanner(call: PluginCall) {
         bannerExecutor.hideBanner(call)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun resumeBanner(call: PluginCall) {
         bannerExecutor.resumeBanner(call)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun removeBanner(call: PluginCall) {
         bannerExecutor.removeBanner(call)
     }
@@ -174,12 +172,12 @@ public class AdMob : Plugin() {
     // INTERSTITIAL ADS
     // ---------------------------------------------------------
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun prepareInterstitial(call: PluginCall) {
         adInterstitialExecutor.prepareInterstitial(call, notifyListenersFunction)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showInterstitial(call: PluginCall) {
         adInterstitialExecutor.showInterstitial(call, notifyListenersFunction)
     }
@@ -188,22 +186,22 @@ public class AdMob : Plugin() {
     // REWARDED ADS
     // ---------------------------------------------------------
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun prepareRewardVideoAd(call: PluginCall) {
         adRewardExecutor.prepareRewardVideoAd(call, notifyListenersFunction)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showRewardVideoAd(call: PluginCall) {
         adRewardExecutor.showRewardVideoAd(call, notifyListenersFunction)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun prepareRewardInterstitialAd(call: PluginCall) {
         adRewardInterstitialExecutor.prepareRewardInterstitialAd(call, notifyListenersFunction)
     }
 
-    @PluginMethod
+    @PluginMethod(thread = PluginThread.MAIN)
     public fun showRewardInterstitialAd(call: PluginCall) {
         adRewardInterstitialExecutor.showRewardInterstitialAd(call, notifyListenersFunction)
     }

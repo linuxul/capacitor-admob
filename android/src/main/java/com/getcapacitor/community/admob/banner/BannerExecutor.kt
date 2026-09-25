@@ -17,6 +17,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.util.Supplier
 import com.getcapacitor.JSObject
 import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginException
 import com.getcapacitor.community.admob.helpers.AdViewIdHelper
 import com.getcapacitor.community.admob.helpers.RequestHelper
 import com.getcapacitor.community.admob.models.AdMobPluginError
@@ -29,6 +30,10 @@ import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.common.util.BiConsumer
 
+/**
+ * Shows, hides and removes the AdMob banner. Its functions are called on the main thread, where AdMob's banner
+ * methods run.
+ */
 public class BannerExecutor(
     contextSupplier: Supplier<Context>,
     activitySupplier: Supplier<Activity?>,
@@ -145,6 +150,8 @@ public class BannerExecutor(
 
         if (mAdView != null) {
             updateExistingAdView(adOptions)
+            // This call used to stay pending when a banner was shown already.
+            call.resolve()
             return
         }
 
@@ -227,88 +234,54 @@ public class BannerExecutor(
 
     public fun hideBanner(call: PluginCall) {
         if (mAdView == null) {
-            call.reject("You tried to hide a banner that was never shown")
-            return
+            throw PluginException("You tried to hide a banner that was never shown")
         }
 
-        try {
-            // A missing activity was a NullPointerException here, which the catch below turns into a rejection.
-            activitySupplier.get()!!.runOnUiThread {
-                mAdViewLayout?.let { adViewLayout ->
-                    adViewLayout.visibility = View.GONE
-                    mAdView?.pause()
+        mAdViewLayout?.let { adViewLayout ->
+            adViewLayout.visibility = View.GONE
+            mAdView?.pause()
 
-                    val sizeInfo = BannerAdSizeInfo(0, 0)
+            val sizeInfo = BannerAdSizeInfo(0, 0)
 
-                    notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
+            notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
 
-                    call.resolve()
-                }
-            }
-        } catch (ex: Exception) {
-            call.reject(ex.localizedMessage, ex = ex)
+            call.resolve()
         }
     }
 
     public fun resumeBanner(call: PluginCall) {
-        try {
-            // A missing activity was a NullPointerException here, which the catch below turns into a rejection.
-            activitySupplier.get()!!.runOnUiThread {
-                val adViewLayout = mAdViewLayout
-                val adView = mAdView
-                if (adViewLayout != null && adView != null) {
-                    adViewLayout.visibility = View.VISIBLE
-                    adView.resume()
+        val adViewLayout = mAdViewLayout
+        val adView = mAdView
+        if (adViewLayout != null && adView != null) {
+            adViewLayout.visibility = View.VISIBLE
+            adView.resume()
 
-                    val sizeInfo = BannerAdSizeInfo(adView)
-                    notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
+            val sizeInfo = BannerAdSizeInfo(adView)
+            notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
 
-                    Log.d(logTag, "Banner AD Resumed")
-                }
-            }
-
-            call.resolve()
-        } catch (ex: Exception) {
-            call.reject(ex.localizedMessage, ex = ex)
+            Log.d(logTag, "Banner AD Resumed")
         }
+
+        call.resolve()
     }
 
     public fun removeBanner(call: PluginCall) {
-        try {
-            if (mAdView != null) {
-                // A missing activity was a NullPointerException here, which the catch below turns into a rejection.
-                activitySupplier.get()!!.runOnUiThread {
-                    mAdView?.let { adView ->
-                        resolveViewGroup()?.removeView(mAdViewLayout)
-                        mAdViewLayout?.removeView(adView)
-                        adView.destroy()
-                        mAdView = null
-                        Log.d(logTag, "Banner AD Removed")
-                        val sizeInfo = BannerAdSizeInfo(0, 0)
-                        notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
-                    }
-                }
-            }
-
-            call.resolve()
-        } catch (ex: Exception) {
-            call.reject(ex.localizedMessage, ex = ex)
+        mAdView?.let { adView ->
+            resolveViewGroup()?.removeView(mAdViewLayout)
+            mAdViewLayout?.removeView(adView)
+            adView.destroy()
+            mAdView = null
+            Log.d(logTag, "Banner AD Removed")
+            val sizeInfo = BannerAdSizeInfo(0, 0)
+            notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
         }
+
+        call.resolve()
     }
 
     private fun updateExistingAdView(adOptions: AdOptions) {
-        // Bind to the AdView present when this call was made. `mAdView` is a
-        // shared field that another UI-thread task can null before this one
-        // runs; using the captured reference avoids a NullPointerException.
-        val adView = mAdView
-        activitySupplier.get()!!.runOnUiThread {
-            if (adView == null || adView !== mAdView) {
-                // Banner was removed or replaced before this task ran.
-                return@runOnUiThread
-            }
-            val adRequest = RequestHelper.createRequest(adOptions)
-            adView.loadAd(adRequest)
-        }
+        val adRequest = RequestHelper.createRequest(adOptions)
+        mAdView?.loadAd(adRequest)
     }
 
     /**
@@ -316,95 +289,85 @@ public class BannerExecutor(
      * https://developers.google.com/admob/ios/banner?hl=ja
      */
     private fun createNewAdView(adOptions: AdOptions) {
-        // Bind to the AdView instance created for this call. `mAdView` is a
-        // shared field that removeBanner/hideBanner or a stale ad-listener
-        // callback can null from the UI thread before this posted task runs;
-        // reading the field inside the task would then throw a
-        // NullPointerException (e.g. in AdViewIdHelper.assignIdToAdView).
-        val adView = mAdView
+        // The AdView created for this call. The listeners below compare it with `mAdView`, which removeBanner or a
+        // failed load clears, to ignore the callbacks of a banner that was removed or replaced since.
+        val adView = mAdView ?: return
 
-        // Run AdMob In Main UI Thread
-        activitySupplier.get()!!.runOnUiThread {
-            if (adView == null || adView !== mAdView) {
-                // Banner was removed or replaced before this task ran.
-                return@runOnUiThread
-            }
-            val adRequest = RequestHelper.createRequest(adOptions)
-            // Assign the correct id needed
-            AdViewIdHelper.assignIdToAdView(adView, adOptions, adRequest, logTag, contextSupplier.get())
-            // Add the AdView to the view hierarchy.
-            mAdViewLayout?.addView(adView)
-            // Start loading the ad.
-            adView.loadAd(adRequest)
-            adView.adListener = object : AdListener() {
-                override fun onAdLoaded() {
-                    if (adView !== mAdView) {
-                        return
-                    }
-                    val sizeInfo = BannerAdSizeInfo(adView)
-
-                    notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
-                    notifyListeners(BannerAdPluginEvents.Loaded.webEventName, emptyObject)
-                    super.onAdLoaded()
-                }
-
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    if (adView !== mAdView) {
-                        // Stale callback from a banner that was already removed or
-                        // replaced. Do not touch the current banner or emit teardown
-                        // events for a view the JS layer has already discarded.
-                        super.onAdFailedToLoad(adError)
-                        return
-                    }
-
-                    resolveViewGroup()?.removeView(mAdViewLayout)
-                    mAdViewLayout?.removeView(adView)
-                    adView.destroy()
-                    mAdView = null
-
-                    val sizeInfo = BannerAdSizeInfo(0, 0)
-                    notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
-
-                    val adMobPluginError = AdMobPluginError(adError)
-                    notifyListeners(BannerAdPluginEvents.FailedToLoad.webEventName, adMobPluginError)
-
-                    super.onAdFailedToLoad(adError)
-                }
-
-                override fun onAdOpened() {
-                    notifyListeners(BannerAdPluginEvents.Opened.webEventName, emptyObject)
-                    super.onAdOpened()
-                }
-
-                override fun onAdClosed() {
-                    notifyListeners(BannerAdPluginEvents.Closed.webEventName, emptyObject)
-                    super.onAdClosed()
-                }
-
-                override fun onAdImpression() {
-                    notifyListeners(BannerAdPluginEvents.AdImpression.webEventName, emptyObject)
-                    super.onAdImpression()
-                }
-            }
-
-            adView.setOnPaidEventListener { adValue ->
+        val adRequest = RequestHelper.createRequest(adOptions)
+        // Assign the correct id needed
+        AdViewIdHelper.assignIdToAdView(adView, adOptions, adRequest, logTag, contextSupplier.get())
+        // Add the AdView to the view hierarchy.
+        mAdViewLayout?.addView(adView)
+        // Start loading the ad.
+        adView.loadAd(adRequest)
+        adView.adListener = object : AdListener() {
+            override fun onAdLoaded() {
                 if (adView !== mAdView) {
-                    return@setOnPaidEventListener
+                    return
                 }
-                val responseInfo = adView.responseInfo
-                val networkName = responseInfo?.mediationAdapterClassName ?: ""
-                val impressionId = responseInfo?.responseId ?: ""
-                val revenueData = AdMobRevenueData(adValue, adView.adUnitId, networkName, impressionId)
-                notifyListeners(BannerAdPluginEvents.AdPaid.webEventName, revenueData)
+                val sizeInfo = BannerAdSizeInfo(adView)
+
+                notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
+                notifyListeners(BannerAdPluginEvents.Loaded.webEventName, emptyObject)
+                super.onAdLoaded()
             }
 
-            // Add AdViewLayout top of the WebView
-            val bannerParent = resolveViewGroup()
-            if (bannerParent != null) {
-                bannerParent.addView(mAdViewLayout)
-            } else {
-                Log.w(logTag, "Banner not attached: parent unavailable")
+            override fun onAdFailedToLoad(adError: LoadAdError) {
+                if (adView !== mAdView) {
+                    // Stale callback from a banner that was already removed or
+                    // replaced. Do not touch the current banner or emit teardown
+                    // events for a view the JS layer has already discarded.
+                    super.onAdFailedToLoad(adError)
+                    return
+                }
+
+                resolveViewGroup()?.removeView(mAdViewLayout)
+                mAdViewLayout?.removeView(adView)
+                adView.destroy()
+                mAdView = null
+
+                val sizeInfo = BannerAdSizeInfo(0, 0)
+                notifyListeners(BannerAdPluginEvents.SizeChanged.webEventName, sizeInfo)
+
+                val adMobPluginError = AdMobPluginError(adError)
+                notifyListeners(BannerAdPluginEvents.FailedToLoad.webEventName, adMobPluginError)
+
+                super.onAdFailedToLoad(adError)
             }
+
+            override fun onAdOpened() {
+                notifyListeners(BannerAdPluginEvents.Opened.webEventName, emptyObject)
+                super.onAdOpened()
+            }
+
+            override fun onAdClosed() {
+                notifyListeners(BannerAdPluginEvents.Closed.webEventName, emptyObject)
+                super.onAdClosed()
+            }
+
+            override fun onAdImpression() {
+                notifyListeners(BannerAdPluginEvents.AdImpression.webEventName, emptyObject)
+                super.onAdImpression()
+            }
+        }
+
+        adView.setOnPaidEventListener { adValue ->
+            if (adView !== mAdView) {
+                return@setOnPaidEventListener
+            }
+            val responseInfo = adView.responseInfo
+            val networkName = responseInfo?.mediationAdapterClassName ?: ""
+            val impressionId = responseInfo?.responseId ?: ""
+            val revenueData = AdMobRevenueData(adValue, adView.adUnitId, networkName, impressionId)
+            notifyListeners(BannerAdPluginEvents.AdPaid.webEventName, revenueData)
+        }
+
+        // Add AdViewLayout top of the WebView
+        val bannerParent = resolveViewGroup()
+        if (bannerParent != null) {
+            bannerParent.addView(mAdViewLayout)
+        } else {
+            Log.w(logTag, "Banner not attached: parent unavailable")
         }
     }
 

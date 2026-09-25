@@ -53,11 +53,8 @@ internal class AdRewardExecutorTest {
         @Mock
         lateinit var pluginCallMock: PluginCall
 
-        lateinit var runnableArgumentCaptor: ArgumentCaptor<Runnable>
-
         @BeforeEach
         fun beforeEach() {
-            runnableArgumentCaptor = ArgumentCaptor.forClass(Runnable::class.java)
             AdRewardExecutor.preparedAds.clear()
             AdRewardExecutor.lastPreparedAdId = null
         }
@@ -90,11 +87,11 @@ internal class AdRewardExecutorTest {
         }
 
         @Test
-        @DisplayName("Should not try to call show when no Reward was prepared")
-        fun shouldNotCallShowWhenNotPrepared() {
+        @DisplayName("Should not resolve when no Reward was prepared")
+        fun shouldNotResolveWhenNotPrepared() {
             sut.showRewardVideoAd(pluginCallMock, notifierMock)
 
-            verify(mockedActivity, times(0)).runOnUiThread(any())
+            verify(pluginCallMock, times(0)).resolve(any())
         }
 
         @Test
@@ -105,10 +102,6 @@ internal class AdRewardExecutorTest {
             AdRewardExecutor.lastPreparedAdId = "test-ad-id"
 
             sut.showRewardVideoAd(pluginCallMock, notifierMock)
-
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnable = runnableArgumentCaptor.value
-            uiThreadRunnable.run()
 
             verify(pluginCallMock, times(0)).reject(any(), any(), any(), any())
             verify(mockedRewardedAd).show(any(), any())
@@ -127,9 +120,6 @@ internal class AdRewardExecutorTest {
 
             sut.showRewardVideoAd(pluginCallMock, notifierMock)
 
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            runnableArgumentCaptor.value.run()
-
             verify(adOne).show(any(), any())
             verify(adTwo, times(0)).show(any(), any())
         }
@@ -144,9 +134,6 @@ internal class AdRewardExecutorTest {
             AdRewardExecutor.lastPreparedAdId = "reward-2"
 
             sut.showRewardVideoAd(pluginCallMock, notifierMock)
-
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            runnableArgumentCaptor.value.run()
 
             verify(adTwo).show(any(), any())
             verify(adOne, times(0)).show(any(), any())
@@ -164,7 +151,7 @@ internal class AdRewardExecutorTest {
             sut.showRewardVideoAd(pluginCallMock, notifierMock)
 
             verify(pluginCallMock).reject(any(), isNull(), isNull(), isNull())
-            verify(mockedActivity, times(0)).runOnUiThread(any())
+            verify(adOne, times(0)).show(any(), any())
         }
     }
 }

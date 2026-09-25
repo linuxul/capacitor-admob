@@ -5,18 +5,24 @@ import androidx.appcompat.app.AppCompatActivity
 import com.getcapacitor.Bridge
 import com.getcapacitor.JSArray
 import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginException
 import com.getcapacitor.community.admob.banner.BannerExecutor
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.RequestConfiguration
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.startCoroutine
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
-import org.mockito.ArgumentMatchers.any
 import org.mockito.Mock
 import org.mockito.MockedConstruction
 import org.mockito.MockedStatic
@@ -89,7 +95,7 @@ class AdMobTest {
             Mockito.`when`(pluginCallMock.getBoolean("initializeForTesting", false)).thenReturn(false)
             assertEquals(argumentCaptor.allValues.size, 0) // Correct env
 
-            sut.initialize(pluginCallMock)
+            startSuspending { sut.initialize(pluginCallMock) }
 
             mobileAdsMockedStatic.verify({ MobileAds.setRequestConfiguration(argumentCaptor.capture()) }, times(1))
             assertEquals(0, argumentCaptor.value.testDeviceIds.size)
@@ -105,7 +111,7 @@ class AdMobTest {
             Mockito.`when`(pluginCallMock.getArray("testingDevices", AdMob.EMPTY_TESTING_DEVICES)).thenReturn(testingDevices)
             assertEquals(argumentCaptor.allValues.size, 0) // Correct env
 
-            sut.initialize(pluginCallMock)
+            startSuspending { sut.initialize(pluginCallMock) }
 
             mobileAdsMockedStatic.verify({ MobileAds.setRequestConfiguration(argumentCaptor.capture()) }, times(1))
             assertEquals(testingDevices.toList<String>(), argumentCaptor.value.testDeviceIds)
@@ -115,24 +121,76 @@ class AdMobTest {
         @DisplayName("Awaits the banner parent view group")
         fun bannerExecutorAwaitViewGroup() {
             Mockito.`when`(pluginCallMock.getBoolean("initializeForTesting", false)).thenReturn(false)
-            doAnswer { invocation ->
-                invocation.getArgument<Runnable>(0).run()
-                null
-            }
-                .`when`(mockedActivity)
-                .runOnUiThread(any(Runnable::class.java))
+            reportViewGroup(found = true)
 
-            val bannerExecutor = bannerExecutorMockedConstruction.constructed()[0]
-            doAnswer { invocation ->
-                invocation.getArgument<(Boolean) -> Unit>(0)(true)
-                null
-            }
-                .`when`(bannerExecutor)
-                .awaitViewGroup(anyK())
+            val result = startSuspending { sut.initialize(pluginCallMock) }
 
-            sut.initialize(pluginCallMock)
-
-            verify(bannerExecutor).awaitViewGroup(anyK())
+            verify(bannerExecutorMockedConstruction.constructed()[0]).awaitViewGroup(anyK())
+            // Returning resolves the call.
+            assertTrue(result?.isSuccess == true)
         }
+
+        @Test
+        @DisplayName("Is waiting while the banner parent view group is not there")
+        fun waitsForTheViewGroup() {
+            Mockito.`when`(pluginCallMock.getBoolean("initializeForTesting", false)).thenReturn(false)
+
+            assertNull(startSuspending { sut.initialize(pluginCallMock) })
+        }
+
+        @Test
+        @DisplayName("Rejects when the banner parent view group never appears")
+        fun viewGroupNeverAppears() {
+            Mockito.`when`(pluginCallMock.getBoolean("initializeForTesting", false)).thenReturn(false)
+            reportViewGroup(found = false)
+
+            val error = startSuspending { sut.initialize(pluginCallMock) }?.exceptionOrNull() as? PluginException
+
+            assertEquals("AdMob initialized, but the banner parent view never appeared", error?.message)
+            assertNull(error?.code)
+        }
+
+        private fun reportViewGroup(found: Boolean) {
+            doAnswer { invocation ->
+                invocation.getArgument<(Boolean) -> Unit>(0)(found)
+                null
+            }
+                .`when`(bannerExecutorMockedConstruction.constructed()[0])
+                .awaitViewGroup(anyK())
+        }
+    }
+
+    @Nested
+    @DisplayName("Settings")
+    inner class Settings {
+        @Test
+        @DisplayName("Rejects a missing muted value")
+        fun missingMuted() {
+            // Mockito answers false for a Boolean by default.
+            Mockito.`when`(pluginCallMock.getBoolean("muted")).thenReturn(null)
+
+            val error = assertThrows(PluginException::class.java) { sut.setApplicationMuted(pluginCallMock) }
+
+            assertEquals("muted property cannot be null", error.message)
+            assertNull(error.code)
+        }
+
+        @Test
+        @DisplayName("Rejects a missing volume")
+        fun missingVolume() {
+            Mockito.`when`(pluginCallMock.getFloat("volume")).thenReturn(null)
+
+            val error = assertThrows(PluginException::class.java) { sut.setApplicationVolume(pluginCallMock) }
+
+            assertEquals("volume property cannot be null", error.message)
+            assertNull(error.code)
+        }
+    }
+
+    /** Starts [block] as a coroutine, as the bridge starts a suspend plugin method. Null while it is suspended. */
+    private fun startSuspending(block: suspend () -> Unit): Result<Unit>? {
+        var result: Result<Unit>? = null
+        block.startCoroutine(Continuation(EmptyCoroutineContext) { result = it })
+        return result
     }
 }

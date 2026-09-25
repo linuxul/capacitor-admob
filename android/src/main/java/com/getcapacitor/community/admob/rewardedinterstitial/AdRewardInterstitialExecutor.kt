@@ -14,6 +14,7 @@ import com.getcapacitor.community.admob.models.Executor
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.common.util.BiConsumer
 
+/** Loads and shows rewarded interstitial ads. Its functions are called on the main thread, where AdMob's ad methods run. */
 public class AdRewardInterstitialExecutor(
     contextSupplier: Supplier<Context>,
     activitySupplier: Supplier<Activity?>,
@@ -23,20 +24,17 @@ public class AdRewardInterstitialExecutor(
     public fun prepareRewardInterstitialAd(call: PluginCall, notifyListenersFunction: BiConsumer<String, JSObject>) {
         val adOptions = AdOptions.AdOptionsFactory.createRewardInterstitialOptions(call)
 
-        // A missing activity was an uncaught NullPointerException here.
-        activitySupplier.get()!!.runOnUiThread {
-            try {
-                val adRequest = RequestHelper.createRequest(adOptions)
-                val id = AdViewIdHelper.getFinalAdId(adOptions, adRequest, logTag, contextSupplier.get())
-                RewardedInterstitialAd.load(
-                    contextSupplier.get(),
-                    id,
-                    adRequest,
-                    RewardedInterstitialAdCallbackAndListeners.getRewardedAdLoadCallback(call, notifyListenersFunction, adOptions)
-                )
-            } catch (ex: Exception) {
-                call.reject(ex.localizedMessage, ex = ex)
-            }
+        try {
+            val adRequest = RequestHelper.createRequest(adOptions)
+            val id = AdViewIdHelper.getFinalAdId(adOptions, adRequest, logTag, contextSupplier.get())
+            RewardedInterstitialAd.load(
+                contextSupplier.get(),
+                id,
+                adRequest,
+                RewardedInterstitialAdCallbackAndListeners.getRewardedAdLoadCallback(call, notifyListenersFunction, adOptions)
+            )
+        } catch (ex: Exception) {
+            call.reject(ex.localizedMessage, ex = ex)
         }
     }
 
@@ -53,20 +51,18 @@ public class AdRewardInterstitialExecutor(
         }
 
         try {
-            // A missing activity was a NullPointerException here, which the catch below turns into a rejection.
-            activitySupplier.get()!!.runOnUiThread {
-                ad.fullScreenContentCallback = FullscreenPluginCallback(RewardInterstitialAdPluginEvents, notifyListenersFunction) {
-                    preparedAds.remove(adId)
-                    if (adId == lastPreparedAdId) {
-                        lastPreparedAdId = preparedAds.keys.lastOrNull()
-                    }
+            ad.fullScreenContentCallback = FullscreenPluginCallback(RewardInterstitialAdPluginEvents, notifyListenersFunction) {
+                preparedAds.remove(adId)
+                if (adId == lastPreparedAdId) {
+                    lastPreparedAdId = preparedAds.keys.lastOrNull()
                 }
-                ad.show(
-                    // The SDK throws a NullPointerException for a missing activity as well.
-                    activitySupplier.get()!!,
-                    RewardedInterstitialAdCallbackAndListeners.getOnUserEarnedRewardListener(call, notifyListenersFunction)
-                )
             }
+            ad.show(
+                // A missing activity is a NullPointerException, which the catch below turns into a rejection. The
+                // SDK throws one for a missing activity as well.
+                activitySupplier.get()!!,
+                RewardedInterstitialAdCallbackAndListeners.getOnUserEarnedRewardListener(call, notifyListenersFunction)
+            )
         } catch (ex: Exception) {
             call.reject(ex.localizedMessage, ex = ex)
         }

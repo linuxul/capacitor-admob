@@ -55,12 +55,8 @@ internal class AdInterstitialExecutorTest {
 
     lateinit var sut: AdInterstitialExecutor
 
-    lateinit var runnableArgumentCaptor: ArgumentCaptor<Runnable>
-
     @BeforeEach
     fun beforeEach() {
-        runnableArgumentCaptor = ArgumentCaptor.forClass(Runnable::class.java)
-
         sut = AdInterstitialExecutor({ context }, { mockedActivity }, notifierMock, logTag, interstitialAdCallbackAndListenersMock)
     }
 
@@ -130,9 +126,6 @@ internal class AdInterstitialExecutorTest {
             val adRequestCaptor = ArgumentCaptor.forClass(AdRequest::class.java)
 
             sut.prepareInterstitial(pluginCallMock, notifierMock)
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnable = runnableArgumentCaptor.value
-            uiThreadRunnable.run()
 
             interstitialAdMockedStatic.verify {
                 InterstitialAd.load(any(), idArgumentCaptor.capture(), adRequestCaptor.capture(), any())
@@ -150,9 +143,6 @@ internal class AdInterstitialExecutorTest {
             val callbackArgumentCaptor = ArgumentCaptor.forClass(InterstitialAdLoadCallback::class.java)
 
             sut.prepareInterstitial(pluginCallMock, notifierMock)
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnable = runnableArgumentCaptor.value
-            uiThreadRunnable.run()
 
             interstitialAdMockedStatic.verify { InterstitialAd.load(any(), any(), any(), callbackArgumentCaptor.capture()) }
 
@@ -201,11 +191,11 @@ internal class AdInterstitialExecutorTest {
         }
 
         @Test
-        @DisplayName("Should not try to call show when no Interstitial was prepared")
-        fun shouldNotCallShowWhenNotPrepared() {
+        @DisplayName("Should not resolve when no Interstitial was prepared")
+        fun shouldNotResolveWhenNotPrepared() {
             sut.showInterstitial(pluginCallMock, notifierMock)
 
-            verify(mockedActivity, times(0)).runOnUiThread(any())
+            verify(pluginCallMock, times(0)).resolve()
         }
 
         @Test
@@ -216,10 +206,6 @@ internal class AdInterstitialExecutorTest {
             AdInterstitialExecutor.lastPreparedAdId = "test-ad-id"
 
             sut.showInterstitial(pluginCallMock, notifierMock)
-
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnable = runnableArgumentCaptor.value
-            uiThreadRunnable.run()
 
             verify(pluginCallMock, times(0)).reject(any(), any(), any(), any())
             verify(mockedInterstitialAd).show(any())
@@ -238,9 +224,6 @@ internal class AdInterstitialExecutorTest {
 
             sut.showInterstitial(pluginCallMock, notifierMock)
 
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            runnableArgumentCaptor.value.run()
-
             verify(adOne).show(any())
             verify(adTwo, times(0)).show(any())
         }
@@ -256,9 +239,6 @@ internal class AdInterstitialExecutorTest {
 
             sut.showInterstitial(pluginCallMock, notifierMock)
 
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            runnableArgumentCaptor.value.run()
-
             verify(adTwo).show(any())
             verify(adOne, times(0)).show(any())
         }
@@ -273,17 +253,12 @@ internal class AdInterstitialExecutorTest {
             AdInterstitialExecutor.lastPreparedAdId = "ad-unit-2"
 
             sut.showInterstitial(pluginCallMock, notifierMock)
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            runnableArgumentCaptor.value.run()
 
             val callback = ArgumentCaptor.forClass(FullScreenContentCallback::class.java)
             verify(adTwo).fullScreenContentCallback = callback.capture()
             callback.value.onAdDismissedFullScreenContent()
 
-            reset(mockedActivity)
             sut.showInterstitial(pluginCallMock, notifierMock)
-            verify(mockedActivity).runOnUiThread(runnableArgumentCaptor.capture())
-            runnableArgumentCaptor.value.run()
 
             verify(adOne).show(any())
         }
@@ -300,7 +275,7 @@ internal class AdInterstitialExecutorTest {
             sut.showInterstitial(pluginCallMock, notifierMock)
 
             verify(pluginCallMock).reject(any(), isNull(), isNull(), isNull())
-            verify(mockedActivity, times(0)).runOnUiThread(any())
+            verify(adOne, times(0)).show(any())
         }
     }
 }

@@ -12,6 +12,7 @@ import android.widget.RelativeLayout
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.getcapacitor.JSObject
 import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginException
 import com.getcapacitor.community.admob.anyK
 import com.getcapacitor.community.admob.helpers.AdViewIdHelper
 import com.getcapacitor.community.admob.helpers.RequestHelper
@@ -21,21 +22,20 @@ import com.google.android.gms.ads.AdView
 import com.google.android.gms.common.util.BiConsumer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.extension.ExtendWith
-import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyInt
-import org.mockito.ArgumentMatchers.isNull
 import org.mockito.Mock
 import org.mockito.MockedConstruction
 import org.mockito.MockedStatic
 import org.mockito.Mockito
-import org.mockito.Mockito.atLeast
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.reset
 import org.mockito.Mockito.times
@@ -134,13 +134,11 @@ internal class BannerExecutorTest {
         @Mock
         lateinit var displayMetricsMock: DisplayMetrics
 
-        lateinit var runnableArgumentCaptor: ArgumentCaptor<Runnable>
         lateinit var adOptionsMockForTesting: AdOptions
 
         @BeforeEach
         fun beforeEach() {
             reset(resourcesMock, displayMetricsMock)
-            runnableArgumentCaptor = ArgumentCaptor.forClass(Runnable::class.java)
             displayMetricsMock.density = 1f
 
             adOptionsMockForTesting = AdOptions.TesterAdOptionsBuilder().build()
@@ -170,9 +168,6 @@ internal class BannerExecutorTest {
             val pluginCallMock = mock(PluginCall::class.java)
 
             sut.showBanner(pluginCallMock)
-            verify(activityMock).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnable = runnableArgumentCaptor.value
-            uiThreadRunnable.run()
 
             requestHelperMockedStatic.verify { RequestHelper.createRequest(adOptionsMockForTesting) }
         }
@@ -185,12 +180,9 @@ internal class BannerExecutorTest {
             sut.showBanner(pluginCallMock)
             sut.showBanner(pluginCallMock)
 
-            verify(activityMock, atLeast(1)).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnableSecondCall = runnableArgumentCaptor.allValues
-            uiThreadRunnableSecondCall.forEach(Runnable::run)
-
             val adViewMocked = adViewMockedConstruction.constructed()[0]
             verify(adViewMocked, times(2)).loadAd(any())
+            verify(pluginCallMock, times(2)).resolve()
         }
     }
 
@@ -218,13 +210,11 @@ internal class BannerExecutorTest {
         @Mock(lenient = true)
         lateinit var displayMetricsMock: DisplayMetrics
 
-        lateinit var runnableArgumentCaptor: ArgumentCaptor<Runnable>
         lateinit var adOptionsMockForTesting: AdOptions
 
         @BeforeEach
         fun beforeEach() {
             reset(resourcesMock, displayMetricsMock)
-            runnableArgumentCaptor = ArgumentCaptor.forClass(Runnable::class.java)
             displayMetricsMock.density = 1f
 
             adOptionsMockForTesting = AdOptions.TesterAdOptionsBuilder().build()
@@ -256,10 +246,6 @@ internal class BannerExecutorTest {
             sut.showBanner(pluginCallMock)
             sut.hideBanner(pluginCallMock)
 
-            verify(activityMock, atLeast(1)).runOnUiThread(runnableArgumentCaptor.capture())
-            val uiThreadRunnableSecondCall = runnableArgumentCaptor.allValues
-            uiThreadRunnableSecondCall.forEach(Runnable::run)
-
             val adViewMocked = adViewMockedConstruction.constructed()[0]
             verify(adViewMocked, times(1)).pause()
         }
@@ -270,10 +256,10 @@ internal class BannerExecutorTest {
             val pluginCallMock = mock(PluginCall::class.java)
             assertEquals(0, adViewMockedConstruction.constructed().size) // Correct environment
 
-            sut.hideBanner(pluginCallMock)
+            val error = assertThrows(PluginException::class.java) { sut.hideBanner(pluginCallMock) }
 
-            verify(activityMock, times(0)).runOnUiThread(runnableArgumentCaptor.capture()) // No Ui Calls
-            verify(pluginCallMock, times(1)).reject(any(), isNull(), isNull(), isNull())
+            assertEquals("You tried to hide a banner that was never shown", error.message)
+            assertNull(error.code)
         }
     }
 }

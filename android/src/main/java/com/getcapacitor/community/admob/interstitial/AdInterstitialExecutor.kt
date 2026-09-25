@@ -14,6 +14,7 @@ import com.getcapacitor.community.admob.models.Executor
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.common.util.BiConsumer
 
+/** Loads and shows interstitial ads. Its functions are called on the main thread, where AdMob's ad methods run. */
 public class AdInterstitialExecutor(
     contextSupplier: Supplier<Context>,
     activitySupplier: Supplier<Activity?>,
@@ -25,18 +26,16 @@ public class AdInterstitialExecutor(
         val adOptions = AdOptions.AdOptionsFactory.createInterstitialOptions(call)
 
         try {
-            // A missing activity was a NullPointerException here, which the catch below turns into a rejection.
-            activitySupplier.get()!!.runOnUiThread {
-                val adRequest = RequestHelper.createRequest(adOptions)
-                val id = AdViewIdHelper.getFinalAdId(adOptions, adRequest, logTag, contextSupplier.get())
-                InterstitialAd.load(
-                    // The SDK throws a NullPointerException for a missing context as well.
-                    activitySupplier.get()!!,
-                    id,
-                    adRequest,
-                    adCallbackAndListeners.getInterstitialAdLoadCallback(call, notifyListenersFunction)
-                )
-            }
+            val adRequest = RequestHelper.createRequest(adOptions)
+            val id = AdViewIdHelper.getFinalAdId(adOptions, adRequest, logTag, contextSupplier.get())
+            InterstitialAd.load(
+                // A missing activity is a NullPointerException, which the catch below turns into a rejection. The SDK
+                // throws one for a missing context as well.
+                activitySupplier.get()!!,
+                id,
+                adRequest,
+                adCallbackAndListeners.getInterstitialAdLoadCallback(call, notifyListenersFunction)
+            )
         } catch (ex: Exception) {
             call.reject(ex.localizedMessage, ex = ex)
         }
@@ -54,21 +53,18 @@ public class AdInterstitialExecutor(
             return
         }
 
-        // A missing activity was an uncaught NullPointerException here.
-        activitySupplier.get()!!.runOnUiThread {
-            try {
-                ad.fullScreenContentCallback = FullscreenPluginCallback(InterstitialAdPluginPluginEvent, notifyListenersFunction) {
-                    preparedAds.remove(adId)
-                    if (adId == lastPreparedAdId) {
-                        lastPreparedAdId = preparedAds.keys.lastOrNull()
-                    }
+        try {
+            ad.fullScreenContentCallback = FullscreenPluginCallback(InterstitialAdPluginPluginEvent, notifyListenersFunction) {
+                preparedAds.remove(adId)
+                if (adId == lastPreparedAdId) {
+                    lastPreparedAdId = preparedAds.keys.lastOrNull()
                 }
-                // Caught below, like the NullPointerException the SDK throws for a missing activity.
-                ad.show(activitySupplier.get()!!)
-                call.resolve()
-            } catch (ex: Exception) {
-                call.reject(ex.localizedMessage, ex = ex)
             }
+            // Caught below, like the NullPointerException the SDK throws for a missing activity.
+            ad.show(activitySupplier.get()!!)
+            call.resolve()
+        } catch (ex: Exception) {
+            call.reject(ex.localizedMessage, ex = ex)
         }
     }
 
