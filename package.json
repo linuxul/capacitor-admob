@@ -1,7 +1,7 @@
 {
   "name": "@capacitor-community/admob",
   "private": false,
-  "version": "8.1.0",
+  "version": "9.0.0",
   "description": "A native plugin for AdMob",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -72,6 +72,9 @@
   "dependencies": {
     "@capacitor/core": "https://github.com/linuxul/capacitor/releases/download/9.0.0/capacitor-core-9.0.0.tgz",
     "@rdlabo/capacitor-docgen": "^0.4.1"
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=9.0.0"
   },
   "lint-staged": {
     "*.{ts}": [
